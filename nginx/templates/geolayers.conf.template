@@ -1,0 +1,133 @@
+# GeoLayers on :8081
+#
+#   /tiles/geolayers_tile/<z>/<x>/<y>?layer=layer_<hex>  -> auth_request (owner / shared user) -> Martin
+#   /x/<share-token>/<z>/<x>/<y>.pbf                     -> auth_request (LayerShareLink)    -> Martin
+#   everything else                                      -> GeoLayers Django
+#
+# Django (apps.layers.tile_auth.validate_tile_request) decides, and on success returns
+# X-Tile-Layer: the table to serve. Nginx always proxies with THAT value. The client's
+# own ?layer= is ignored, so knowing a table name grants nothing.
+# Only the geolayers_tile source is reachable here. GeoTrak's riyadh_roads is not.
+server {
+    listen 8081;
+    server_name _;
+
+    client_max_body_size 250m;
+    access_log /var/log/nginx/access.log geo_main;
+
+    set $geolayers_upstream http://geolayers_web:8000;
+
+    # --------------------------------------------- map builder tiles (signed-in users)
+    location ~ ^/tiles/geolayers_tile/(?<tile_z>[0-9]+)/(?<tile_x>[0-9]+)/(?<tile_y>[0-9]+)(?:\.pbf|\.mvt)?$ {
+        access_log /dev/stdout geo_tiles;
+        include /etc/nginx/snippets/proxy-martin.conf;
+
+        if ($request_method = OPTIONS) {
+            return 204;
+        }
+
+        auth_request     /_geolayers_tile_auth;
+        auth_request_set $tile_token_id     $upstream_http_x_tile_token_id;
+        auth_request_set $tile_layer        $upstream_http_x_tile_layer;
+        auth_request_set $tile_deny_reason  $upstream_http_x_tile_deny_reason;
+
+        # Latency breakdown (seconds), for DevTools / latency_probe.py / k6:
+        #   X-Timing-Auth   = Django auth subrequest,  X-Timing-Martin = Martin tile render.
+        auth_request_set $tile_auth_time $upstream_response_time;
+        add_header X-Timing-Auth   $tile_auth_time always;
+        add_header X-Timing-Martin $upstream_response_time always;
+        add_header Access-Control-Expose-Headers "X-Timing-Auth, X-Timing-Martin" always;
+
+        # Per-user authorization: browsers may cache, shared caches must not.
+        add_header Cache-Control "private, max-age=300" always;
+
+        error_page 401 = @geolayers_tile_401;
+        error_page 403 = @geolayers_tile_403;
+
+        proxy_pass http://martin/geolayers_tile/$tile_z/$tile_x/$tile_y?layer=$tile_layer;
+    }
+
+    # --------------------------------------------- public share links (token in path)
+    location ~ ^/x/(?<share_token>[A-Za-z0-9_-]+)/(?<tile_z>[0-9]+)/(?<tile_x>[0-9]+)/(?<tile_y>[0-9]+)\.pbf$ {
+        access_log /dev/stdout geo_tiles;
+        include /etc/nginx/snippets/proxy-martin.conf;
+
+        if ($request_method = OPTIONS) {
+            return 204;
+        }
+
+        auth_request     /_geolayers_tile_auth;
+        auth_request_set $tile_token_id     $upstream_http_x_tile_token_id;
+        auth_request_set $tile_layer        $upstream_http_x_tile_layer;
+        auth_request_set $tile_deny_reason  $upstream_http_x_tile_deny_reason;
+
+        # Latency breakdown (seconds), for DevTools / latency_probe.py / k6:
+        #   X-Timing-Auth   = Django auth subrequest,  X-Timing-Martin = Martin tile render.
+        auth_request_set $tile_auth_time $upstream_response_time;
+        add_header X-Timing-Auth   $tile_auth_time always;
+        add_header X-Timing-Martin $upstream_response_time always;
+        add_header Access-Control-Expose-Headers "X-Timing-Auth, X-Timing-Martin" always;
+
+        # Short, so a revoked/blocked/expired link stops working within a minute even for cached clients.
+        add_header Cache-Control "public, max-age=60" always;
+
+        error_page 401 = @geolayers_tile_403;
+        error_page 403 = @geolayers_tile_403;
+
+        proxy_pass http://martin/geolayers_tile/$tile_z/$tile_x/$tile_y?layer=$tile_layer;
+    }
+
+    location /tiles/ {
+        return 404;
+    }
+
+    # Internal auth subrequest (not reachable from outside).
+    location = /_geolayers_tile_auth {
+        internal;
+        proxy_pass $geolayers_upstream/tiles-auth/validate/;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length      "";
+        proxy_set_header Host                $http_host;
+        proxy_set_header X-Original-URI      $request_uri;
+        proxy_set_header X-Original-Method   $request_method;
+        proxy_set_header X-Real-IP           $remote_addr;
+        proxy_set_header X-Forwarded-For     $proxy_add_x_forwarded_for;
+        proxy_set_header X-Tile-Auth-Secret  "${GEOLAYERS_TILE_AUTH_SHARED_SECRET}";
+        proxy_connect_timeout 3s;
+        proxy_read_timeout    5s;
+    }
+
+    location ^~ /tiles-auth/ {
+        return 404;
+    }
+
+    location @geolayers_tile_401 {
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Cache-Control "no-store" always;
+        default_type text/plain;
+        return 401 "Sign in to GeoLayers, or use a share link.\n";
+    }
+
+    # Same status codes the Django share-link proxy used: 404 unknown, 410 expired, 403 blocked/forbidden.
+    location @geolayers_tile_403 {
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Cache-Control "no-store" always;
+        default_type text/plain;
+        if ($tile_deny_reason = "not_found") {
+            return 404 "Share link not found.\n";
+        }
+        if ($tile_deny_reason = "expired") {
+            return 410 "This share link has expired.\n";
+        }
+        if ($tile_deny_reason = "blocked") {
+            return 403 "This share link has been blocked.\n";
+        }
+        return 403 "You do not have access to this layer.\n";
+    }
+
+    # --------------------------------------------- app
+    location / {
+        include /etc/nginx/snippets/proxy-django.conf;
+        proxy_pass $geolayers_upstream;
+    }
+}

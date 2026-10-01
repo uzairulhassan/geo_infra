@@ -1,0 +1,4 @@
+# Shell scripts and nginx configs run inside Linux containers: keep LF endings.
+*.sh       text eol=lf
+*.template text eol=lf
+*.conf     text eol=lf

@@ -1,0 +1,108 @@
+# Shared infrastructure for GeoTrak Maps and GeoLayers.
+#
+#   postgis : ONE PostgreSQL/PostGIS instance holding three databases
+#             (geotrak, riyadh_roads, geolayers) with one login role per app.
+#   martin  : ONE Martin tile server, connected read-only to riyadh_roads and
+#             geolayers. It is NOT published on the host; only Nginx reaches it.
+#   nginx   : The single public entry point.
+#               :8000 -> GeoTrak Django, plus /tiles/* (Nginx auth_request to Django, then Martin)
+#               :8081 -> GeoLayers Django, plus /tiles/geolayers_tile/* and /x/<share>/* (auth_request to Django, then Martin)
+#
+# The two Django projects stay in their own repos and compose files. They join
+# the external `geo_shared` network created here, under the aliases
+# `geotrak_web` and `geolayers_web`.
+#
+# Start this stack FIRST:  docker compose up -d
+name: geo-infra
+
+services:
+  postgis:
+    image: postgis/postgis:18-3.6
+    container_name: geo-postgis
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: postgres
+      # Consumed by postgres/init/01-init-databases.sh (first start only)
+      GEOTRAK_DB_PASSWORD: ${GEOTRAK_DB_PASSWORD:?Set GEOTRAK_DB_PASSWORD in .env}
+      GEOLAYERS_DB_PASSWORD: ${GEOLAYERS_DB_PASSWORD:?Set GEOLAYERS_DB_PASSWORD in .env}
+      MARTIN_DB_PASSWORD: ${MARTIN_DB_PASSWORD:?Set MARTIN_DB_PASSWORD in .env}
+    volumes:
+      # PostgreSQL 18 images keep data under /var/lib/postgresql/<major>/...
+      - postgres_data:/var/lib/postgresql
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+      - ./scripts:/scripts:ro
+      - ./backups:/backups
+    ports:
+      # Loopback only (pgAdmin / psql over SSH tunnel). Never expose 5432 publicly.
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [geo_shared]
+
+  martin:
+    image: ghcr.io/maplibre/martin:v0.18.1
+    container_name: geo-martin
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/config/entrypoint.sh"]
+    environment:
+      MARTIN_RIYADH_DATABASE_URL: postgresql://martin_reader:${MARTIN_DB_PASSWORD}@postgis:5432/riyadh_roads
+      MARTIN_GEOLAYERS_DATABASE_URL: postgresql://martin_reader:${MARTIN_DB_PASSWORD}@postgis:5432/geolayers
+      # GeoTrak edits are live, so the tile cache must stay off (stale tiles after approve otherwise).
+      MARTIN_CACHE_MB: "0"
+      MARTIN_POOL_SIZE: ${MARTIN_POOL_SIZE:-5}
+      MARTIN_WORKERS: ${MARTIN_WORKERS:-2}
+    volumes:
+      - ./martin/entrypoint.sh:/config/entrypoint.sh:ro
+    depends_on:
+      postgis:
+        condition: service_healthy
+    mem_limit: 256m
+    networks: [geo_shared]
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: geo-nginx
+    restart: unless-stopped
+    environment:
+      # Nginx sends this to Django on every auth subrequest. Django rejects
+      # validation calls that don't carry it, so the validate endpoint can't be
+      # called directly even if the Django container were reachable.
+      TILE_AUTH_SHARED_SECRET: ${TILE_AUTH_SHARED_SECRET:?Set TILE_AUTH_SHARED_SECRET in .env}
+      GEOLAYERS_TILE_AUTH_SHARED_SECRET: ${GEOLAYERS_TILE_AUTH_SHARED_SECRET:?Set GEOLAYERS_TILE_AUTH_SHARED_SECRET in .env}
+    volumes:
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - ./nginx/snippets:/etc/nginx/snippets:ro
+    ports:
+      - "${GEOTRAK_HTTP_PORT:-8000}:8000"
+      - "${GEOLAYERS_HTTP_PORT:-8081}:8081"
+    depends_on:
+      - martin
+    networks: [geo_shared]
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: geo-pgadmin
+    restart: unless-stopped
+    profiles: ["tools"]   # docker compose --profile tools up -d pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-change-me}
+    ports:
+      - "127.0.0.1:5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks: [geo_shared]
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+
+networks:
+  geo_shared:
+    name: geo_shared
+    driver: bridge

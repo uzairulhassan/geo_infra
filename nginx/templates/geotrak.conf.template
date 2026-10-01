@@ -1,0 +1,94 @@
+# GeoTrak Maps on :8000
+#
+#   /tiles/<source>/<z>/<x>/<y>  -> auth_request /_tile_auth (Django) -> Martin
+#   everything else              -> GeoTrak Django
+#
+# Tile auth, in order (decided by Django in tile_access.views.validate_tile_request):
+#   1. ?token=<token>, X-Tile-Token header, or "Authorization: Bearer <token>"
+#      -> checks revocation, expiry, per-layer permission, and logs usage
+#   2. GeoTrak session cookie (the built-in web map) -> logged-in user with a role
+server {
+    listen 8000 default_server;
+    server_name _;
+
+    client_max_body_size 250m;
+    access_log /var/log/nginx/access.log geo_main;
+
+    # Resolved at request time (see resolver in default.conf), so Nginx starts even if GeoTrak is down.
+    set $geotrak_upstream http://geotrak_web:8000;
+
+    # ---------------------------------------------------------------- tiles
+    location ~ ^/tiles/(?<tile_source>[A-Za-z0-9_]+)/(?<tile_z>[0-9]+)/(?<tile_x>[0-9]+)/(?<tile_y>[0-9]+)(?:\.pbf|\.mvt)?$ {
+        access_log /dev/stdout geo_tiles;
+        include /etc/nginx/snippets/proxy-martin.conf;
+
+        # CORS preflight (clients sending Authorization / X-Tile-Token). Not authenticated.
+        if ($request_method = OPTIONS) {
+            return 204;
+        }
+
+        auth_request     /_tile_auth;
+        auth_request_set $tile_token_id $upstream_http_x_tile_token_id;
+
+        # Latency breakdown (seconds), for DevTools / latency_probe.py / k6:
+        #   X-Timing-Auth   = Django auth subrequest,  X-Timing-Martin = Martin tile render.
+        auth_request_set $tile_auth_time $upstream_response_time;
+        add_header X-Timing-Auth   $tile_auth_time always;
+        add_header X-Timing-Martin $upstream_response_time always;
+        add_header Access-Control-Expose-Headers "X-Timing-Auth, X-Timing-Martin" always;
+
+        # Live edits: tiles must never be cached by browsers or intermediaries.
+        add_header Cache-Control "no-store, max-age=0" always;
+
+        error_page 401 = @tile_401;
+        error_page 403 = @tile_403;
+
+        proxy_pass http://martin/$tile_source/$tile_z/$tile_x/$tile_y$is_args$args;
+    }
+
+    # Anything else under /tiles/ (catalog, health, malformed paths) is never exposed.
+    location /tiles/ {
+        return 404;
+    }
+
+    # Internal auth subrequest. Not reachable from outside (`internal`).
+    location = /_tile_auth {
+        internal;
+        proxy_pass $geotrak_upstream/tiles-auth/validate/;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length      "";
+        proxy_set_header Host                $http_host;
+        proxy_set_header X-Original-URI      $request_uri;
+        proxy_set_header X-Original-Method   $request_method;
+        proxy_set_header X-Real-IP           $remote_addr;
+        proxy_set_header X-Forwarded-For     $proxy_add_x_forwarded_for;
+        proxy_set_header X-Tile-Auth-Secret  "${TILE_AUTH_SHARED_SECRET}";
+        proxy_connect_timeout 3s;
+        proxy_read_timeout    5s;
+    }
+
+    # The Django validate endpoint must only be hit through /_tile_auth above.
+    location ^~ /tiles-auth/ {
+        return 404;
+    }
+
+    location @tile_401 {
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Cache-Control "no-store" always;
+        default_type application/json;
+        return 401 '{"detail":"Tile access requires a valid token or a signed-in session."}';
+    }
+
+    location @tile_403 {
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Cache-Control "no-store" always;
+        default_type application/json;
+        return 403 '{"detail":"Token is invalid, expired, revoked, or not allowed for this layer."}';
+    }
+
+    # ---------------------------------------------------------------- app
+    location / {
+        include /etc/nginx/snippets/proxy-django.conf;
+        proxy_pass $geotrak_upstream;
+    }
+}

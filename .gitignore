@@ -1,0 +1,5 @@
+.env
+backups/
+tests/.fixtures.json
+tests/reports/
+__pycache__/
