@@ -1,5 +1,10 @@
 .env
+.env.prod
+.env.local
+.env.*.local
 backups/
 tests/.fixtures.json
 tests/reports/
 __pycache__/
+*.pyc
+.DS_Store

@@ -2,7 +2,7 @@
 
 | Layer | What | Where | Runs on |
 |---|---|---|---|
-| Unit / integration | Django logic: tokens, sessions, share links, permissions, usage counting, management commands, the PostGIS tile function | `naqel-mapserver/tile_access/tests.py`, `layeruploading_martintileserver/apps/layers/tests.py` | Django test runner (PostGIS test DB) |
+| Unit / integration | Django logic: tokens, sessions, share links, permissions, usage counting, management commands, the PostGIS tile function | `geotrak-maps/tile_access/tests.py`, `layeruploading_martintileserver/apps/layers/tests.py` | Django test runner (PostGIS test DB) |
 | Config | `nginx -t`, migrations match models | `run_all.sh` | containers |
 | End-to-end smoke | Real HTTP through Nginx → Django auth → Martin: status codes, headers, CORS, revocation, isolation between ports | `smoke_test.py` | any machine with Python 3 (stdlib only) |
 | Latency | Per-request time split into **auth** (Django), **martin** (render) and **network/Nginx** | `latency_probe.py` | your PC (real browser numbers) or the server |
@@ -44,7 +44,7 @@ X-Timing-Martin: 0.012   # Martin + PostGIS rendering the tile (seconds)
 
 ```bash
 # on the server: create fixtures and copy them to your PC (delete afterwards!)
-docker compose -f ../naqel-mapserver/docker-compose.yml exec -T geotrak_maps python manage.py tile_loadtest_fixture
+docker compose -f ../geotrak-maps/docker-compose.prod.yml exec -T geotrak_maps python manage.py tile_loadtest_fixture
 docker compose -f ../layeruploading_martintileserver/docker-compose.prod.yml exec -T web python manage.py tile_loadtest_fixture
 #   -> put both JSON outputs into tests/.fixtures.json as {"geotrak": ..., "geolayers": ...}
 
@@ -85,5 +85,5 @@ The pass/fail thresholds are p95 < `P95_MS` (default 500 ms) per scenario and < 
 The summary also shows `tile_auth_ms` and `tile_martin_ms` per scenario.
 
 To find capacity, raise `RATE` until a threshold fails. The usual first bottleneck
-is the Django auth workers (`GUNICORN_WORKERS`, 3 by default for GeoTrak and 2 for GeoLayers),
+is the Django auth workers (`GUNICORN_WORKERS`, typically 2 for each app on a 4GB VPS),
 because every tile makes one auth call. Then it's Martin/PostGIS at high zoom on dense data.
