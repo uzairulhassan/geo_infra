@@ -4,7 +4,7 @@ Shared infrastructure for two independent Django projects:
 
 | Project | Repo folder | Public port | Database(s) |
 |---|---|---|---|
-| GeoTrak Maps | `../geotrak-maps` | **:8000** | `geotrak`, `riyadh_roads` |
+| GeoTrak Maps | `../naqel-mapserver` | **:8000** | `geotrak`, `riyadh_roads` |
 | GeoLayers | `../layeruploading_martintileserver` | **:8081** | `geolayers` |
 
 ```
@@ -42,7 +42,7 @@ cd geo_infra
 docker compose up -d
 
 # 2. Apps (secrets in each app's .env must match geo_infra/.env)
-cd ../geotrak-maps && docker compose -f docker-compose.prod.yml up -d --build
+cd ../naqel-mapserver && docker compose -f docker-compose.prod.yml up -d --build
 cd ../layeruploading_martintileserver && docker compose -f docker-compose.prod.yml up -d --build
 
 # 3. After GeoLayers' FIRST migrate (creates geolayers_tile):
@@ -68,7 +68,7 @@ Environment files:
 ## GeoTrak tile tokens
 
 ```bash
-docker compose -f ../geotrak-maps/docker-compose.prod.yml exec geotrak_maps \
+docker compose -f ../naqel-mapserver/docker-compose.prod.yml exec geotrak_maps \
   python manage.py tile_tokens create --name "QGIS – Ops" --layers riyadh_roads --days 90
 ```
 

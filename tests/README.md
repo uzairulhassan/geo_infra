@@ -2,7 +2,7 @@
 
 | Layer | What | Where | Runs on |
 |---|---|---|---|
-| Unit / integration | Django logic: tokens, sessions, share links, permissions, usage counting, management commands, the PostGIS tile function | `geotrak-maps/tile_access/tests.py`, `layeruploading_martintileserver/apps/layers/tests.py` | Django test runner (PostGIS test DB) |
+| Unit / integration | Django logic: tokens, sessions, share links, permissions, usage counting, management commands, the PostGIS tile function | `naqel-mapserver/tile_access/tests.py`, `layeruploading_martintileserver/apps/layers/tests.py` | Django test runner (PostGIS test DB) |
 | Config | `nginx -t`, migrations match models | `run_all.sh` | containers |
 | End-to-end smoke | Real HTTP through Nginx → Django auth → Martin: status codes, headers, CORS, revocation, isolation between ports | `smoke_test.py` | any machine with Python 3 (stdlib only) |
 | Latency | Per-request time split into **auth** (Django), **martin** (render) and **network/Nginx** | `latency_probe.py` | your PC (real browser numbers) or the server |
@@ -44,7 +44,7 @@ X-Timing-Martin: 0.012   # Martin + PostGIS rendering the tile (seconds)
 
 ```bash
 # on the server: create fixtures and copy them to your PC (delete afterwards!)
-docker compose -f ../geotrak-maps/docker-compose.prod.yml exec -T geotrak_maps python manage.py tile_loadtest_fixture
+docker compose -f ../naqel-mapserver/docker-compose.prod.yml exec -T geotrak_maps python manage.py tile_loadtest_fixture
 docker compose -f ../layeruploading_martintileserver/docker-compose.prod.yml exec -T web python manage.py tile_loadtest_fixture
 #   -> put both JSON outputs into tests/.fixtures.json as {"geotrak": ..., "geolayers": ...}
 

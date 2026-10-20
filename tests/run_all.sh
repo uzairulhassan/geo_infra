@@ -12,7 +12,7 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 INFRA="$(cd "$HERE/.." && pwd)"
-GEOTRAK_DIR="${GEOTRAK_DIR:-$INFRA/../geotrak-maps}"
+GEOTRAK_DIR="${GEOTRAK_DIR:-$INFRA/../naqel-mapserver}"
 GEOLAYERS_DIR="${GEOLAYERS_DIR:-$INFRA/../layeruploading_martintileserver}"
 GEOTRAK_COMPOSE="${GEOTRAK_COMPOSE:-docker-compose.prod.yml}"
 GEOLAYERS_COMPOSE="${GEOLAYERS_COMPOSE:-docker-compose.prod.yml}"
