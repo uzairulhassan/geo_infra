@@ -198,16 +198,18 @@ SELECT
   ) AS fclass,
   LEFT(NULLIF(TRIM(s.name::text), ''), 100) AS name,
   -- Latin / non-Arabic primary name → English label field
+  -- Arabic detection: main Arabic block + supplements (PostGIS POSIX, UTF-8 literals).
   CASE
     WHEN NULLIF(TRIM(s.name::text), '') IS NULL THEN NULL
-    WHEN NULLIF(TRIM(s.name::text), '') ~ '[ء-ي]'
+    WHEN NULLIF(TRIM(s.name::text), '') ~ '[؀-ۿݐ-ݿࢠ-ࣿ]'
          AND NULLIF(TRIM(s.name::text), '') !~ '[A-Za-z]' THEN NULL
     ELSE NULLIF(TRIM(s.name::text), '')
   END AS name_en,
   -- Arabic script → Arabic label field (GeoTrak bilingual labels)
   CASE
     WHEN NULLIF(TRIM(s.name::text), '') IS NULL THEN NULL
-    WHEN NULLIF(TRIM(s.name::text), '') ~ '[ء-ي]' THEN NULLIF(TRIM(s.name::text), '')
+    WHEN NULLIF(TRIM(s.name::text), '') ~ '[؀-ۿݐ-ݿࢠ-ࣿ]'
+      THEN NULLIF(TRIM(s.name::text), '')
     ELSE NULL
   END AS name_ar,
   LEFT(NULLIF(TRIM(s.ref::text), ''), 20) AS ref,
@@ -241,12 +243,6 @@ CREATE INDEX riyadh_roads_name_ar_idx ON $TARGET (name_ar);
 
 ANALYZE $TARGET;
 
-ALTER TABLE $TARGET OWNER TO geotrak_user;
-GRANT SELECT ON $TARGET TO martin_reader;
-GRANT SELECT, INSERT, UPDATE, DELETE ON $TARGET TO geotrak_user;
-GRANT USAGE, SELECT ON SEQUENCE riyadh_roads_gid_seq TO geotrak_user;
-ALTER SEQUENCE riyadh_roads_gid_seq OWNER TO geotrak_user;
-
 COMMIT;
 
 SELECT COUNT(*) AS road_count,
@@ -271,6 +267,9 @@ FROM $TARGET
 WHERE name_ar IS NOT NULL
 LIMIT 5;
 SQL
+
+echo "==> Applying geotrak_user + martin_reader grants"
+bash /scripts/grant-martin-read.sh
 
 # Also write a fresh UTF-8 zip for optional re-use / GeoLayers (not committed).
 if [[ "$SOURCE_MODE" == "clip" && -f "$WORK/riyadh_roads_utf8.shp" ]]; then
