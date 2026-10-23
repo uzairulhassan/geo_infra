@@ -88,7 +88,8 @@ class GeoLayersTiles(unittest.TestCase):
         z, x, y = center_tile(cls.fx["bounds"], z=13)
         cls.zxy = tile_path(z, x, y)
         cls.tile = f"{CFG.geolayers}/tiles/geolayers_tile/{cls.zxy}?layer={cls.fx['layer_table']}"
-        cls.share = f"{CFG.geolayers}/x/{cls.fx['share_token']}/{cls.zxy}.pbf"
+        cls.layer_url_tile = f"{CFG.geolayers}/x/{cls.fx['share_token']}/{cls.zxy}.pbf"
+        cls.table = cls.fx["layer_table"]
 
     def test_anonymous_needs_sign_in(self):
         self.assertEqual(self.http.get(self.tile).status, 401)
@@ -96,7 +97,7 @@ class GeoLayersTiles(unittest.TestCase):
     def test_owner_session_gets_real_features(self):
         res = self.http.get(self.tile, {"Cookie": f"geolayers_sessionid={self.session}"})
         self.assertEqual(res.status, 200)
-        self.assertIn(self.fx["layer_table"].encode(), res.body)  # MVT layer name
+        self.assertIn(self.table.encode(), res.body)  # MVT layer name
         self.assertIn("private", res.header("cache-control"))
 
     def test_owner_jwt(self):
@@ -106,20 +107,24 @@ class GeoLayersTiles(unittest.TestCase):
         other = f"{CFG.geolayers}/tiles/geolayers_tile/{self.zxy}?layer=layer_{'0' * 32}"
         self.assertEqual(self.http.get(other, {"Authorization": f"Bearer {self.jwt}"}).status, 403)
 
-    def test_share_link_public(self):
-        res = self.http.get(self.share)
+    def test_layer_url_public(self):
+        res = self.http.get(self.layer_url_tile)
         self.assertEqual(res.status, 200)
         self.assertIn("max-age=60", res.header("cache-control"))
         self.assertEqual(res.header("access-control-allow-origin"), "*")
 
-    def test_unknown_share_link_is_404(self):
+    def test_unknown_layer_url_is_404(self):
         self.assertEqual(self.http.get(f"{CFG.geolayers}/x/not-a-real-token/{self.zxy}.pbf").status, 404)
+
+    def test_unknown_map_url_is_404(self):
+        url = f"{CFG.geolayers}/m/not-a-real-token/{self.table}/{self.zxy}.pbf"
+        self.assertEqual(self.http.get(url).status, 404)
 
     def test_geotrak_source_not_exposed_here(self):
         self.assertEqual(self.http.get(f"{CFG.geolayers}/tiles/riyadh_roads/0/0/0").status, 404)
         self.assertEqual(self.http.get(f"{CFG.geolayers}/tiles-auth/validate/").status, 404)
 
-    def test_create_use_revoke_share_link_end_to_end(self):
+    def test_create_use_revoke_layer_url_end_to_end(self):
         auth = {"Authorization": f"Bearer {self.jwt}"}
         api = f"{CFG.geolayers}/api/layers/{self.fx['layer_id']}/share-links/"
         created = self.http.post_json(api, {"expires_at": "2099-01-01T00:00:00Z"}, auth)
@@ -132,7 +137,38 @@ class GeoLayersTiles(unittest.TestCase):
         self.assertGreaterEqual(next(l for l in listed if l["id"] == link["id"])["total_requests"], 1)
 
         self.assertEqual(self.http.request("DELETE", f"{api}{link['id']}/", auth).status, 204)
-        self.assertEqual(self.http.get(url).status, 404, "revoked link must stop on the next tile")
+        self.assertEqual(self.http.get(url).status, 404, "revoked Layer URL must stop on the next tile")
+
+    def test_create_use_revoke_map_url_end_to_end(self):
+        auth = {"Authorization": f"Bearer {self.jwt}"}
+        created_map = self.http.post_json(f"{CFG.geolayers}/api/maps/", {"name": "smoke-map"}, auth)
+        self.assertEqual(created_map.status, 201, created_map.body[:300])
+        map_id = json.loads(created_map.body)["id"]
+
+        added = self.http.post_json(
+            f"{CFG.geolayers}/api/maps/{map_id}/layers/",
+            {"layer": self.fx["layer_id"]},
+            auth,
+        )
+        self.assertEqual(added.status, 201, added.body[:300])
+
+        links_api = f"{CFG.geolayers}/api/maps/{map_id}/share-links/"
+        created = self.http.post_json(links_api, {}, auth)
+        self.assertEqual(created.status, 201, created.body[:300])
+        link = json.loads(created.body)
+        url = f"{CFG.geolayers}/m/{link['token']}/{self.table}/{self.zxy}.pbf"
+
+        res = self.http.get(url)
+        self.assertEqual(res.status, 200)
+        self.assertIn("max-age=60", res.header("cache-control"))
+        self.assertEqual(res.header("access-control-allow-origin"), "*")
+
+        other = f"{CFG.geolayers}/m/{link['token']}/layer_{'0' * 32}/{self.zxy}.pbf"
+        self.assertEqual(self.http.get(other).status, 403)
+
+        self.assertEqual(self.http.request("DELETE", f"{links_api}{link['id']}/", auth).status, 204)
+        self.assertEqual(self.http.get(url).status, 404, "revoked Map URL must stop on the next tile")
+        self.assertEqual(self.http.request("DELETE", f"{CFG.geolayers}/api/maps/{map_id}/", auth).status, 204)
 
 
 class MartinDirect(unittest.TestCase):

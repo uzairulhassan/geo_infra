@@ -7,8 +7,8 @@
 #                     never needs a restart or catalog reload.
 #
 # Martin is only reachable inside the geo_shared network. Nginx decides what is exposed:
-#   :8000 /tiles/<source>/...           (GeoTrak, guarded by auth_request)
-#   :8081 /tiles/geolayers_tile/... and /x/<share-token>/...  (GeoLayers, guarded by auth_request)
+#   :8000 /tiles/<source>/...                                 (GeoTrak)
+#   :8081 /tiles/geolayers_tile/..., /x/<token>/..., /m/<token>/...  (GeoLayers)
 set -eu
 
 RIYADH_URL="${MARTIN_RIYADH_DATABASE_URL:?MARTIN_RIYADH_DATABASE_URL not set}"

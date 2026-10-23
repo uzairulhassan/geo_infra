@@ -6,7 +6,8 @@
 #             geolayers. It is NOT published on the host; only Nginx reaches it.
 #   nginx   : The single public entry point.
 #               :8000 -> GeoTrak Django, plus /tiles/* (Nginx auth_request to Django, then Martin)
-#               :8081 -> GeoLayers Django, plus /tiles/geolayers_tile/* and /x/<share>/* (auth_request to Django, then Martin)
+#               :8081 -> GeoLayers Django, plus /tiles/geolayers_tile/*, /x/* (Layer URL),
+#                        /m/* (Map URL) — each gated by auth_request to Django, then Martin
 #
 # The two Django projects stay in their own repos and compose files. They join
 # the external `geo_shared` network created here, under the aliases

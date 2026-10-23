@@ -57,7 +57,7 @@ def build_scenarios(cfg, http):
         ("GeoTrak  | API token       ", lambda t: (gt_url(*t), {"Authorization": f"Bearer {gt['token']}"}), None),
         ("GeoTrak  | session (web map)", lambda t: (gt_url(*t), {"Cookie": f"geotrak_sessionid={gt_session}"}), None),
         ("GeoLayers| session (builder)", lambda t: (gl_url(*t), {"Cookie": f"geolayers_sessionid={gl_session}"}), gl_bbox),
-        ("GeoLayers| share link       ",
+        ("GeoLayers| Layer URL        ",
          lambda t: (f"{cfg.geolayers}/x/{gl['share_token']}/{t[0]}/{t[1]}/{t[2]}.pbf", {}), gl_bbox),
     ]
     if cfg.martin:

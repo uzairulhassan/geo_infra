@@ -2,7 +2,7 @@
 
 | Layer | What | Where | Runs on |
 |---|---|---|---|
-| Unit / integration | Django logic: tokens, sessions, share links, permissions, usage counting, management commands, the PostGIS tile function | `naqel-mapserver/tile_access/tests.py`, `layeruploading_martintileserver/apps/layers/tests.py` | Django test runner (PostGIS test DB) |
+| Unit / integration | Django logic: tokens, sessions, Layer/Map URLs, permissions, usage counting, management commands, the PostGIS tile function | `naqel-mapserver/tile_access/tests.py`, `layeruploading_martintileserver/apps/layers/tests.py`, `…/apps/maps/tests.py` | Django test runner (PostGIS test DB) |
 | Config | `nginx -t`, migrations match models | `run_all.sh` | containers |
 | End-to-end smoke | Real HTTP through Nginx → Django auth → Martin: status codes, headers, CORS, revocation, isolation between ports | `smoke_test.py` | any machine with Python 3 (stdlib only) |
 | Latency | Per-request time split into **auth** (Django), **martin** (render) and **network/Nginx** | `latency_probe.py` | your PC (real browser numbers) or the server |
@@ -18,7 +18,7 @@ RATE=60 DURATION=3m bash tests/run_all.sh --only load
 ```
 
 `run_all.sh` creates throwaway fixtures (a `loadtest` GeoTrak editor and token, plus
-a GeoLayers user with a 5,000-point layer and a share link) and **always removes
+a GeoLayers user with a 5,000-point layer and a Layer URL) and **always removes
 them at the end**. The fixtures' secrets live only in `tests/.fixtures.json`
 (mode 600, gitignored, deleted on exit). Reports go to `tests/reports/`.
 
@@ -35,7 +35,7 @@ X-Timing-Martin: 0.012   # Martin + PostGIS rendering the tile (seconds)
 ```
 
 **In the browser:** open DevTools → Network, filter on `tiles` (GeoTrak) or
-`geolayers_tile` / `/x/` (GeoLayers), and click a tile:
+`geolayers_tile` / `/x/` / `/m/` (GeoLayers), and click a tile:
 * **Timing** tab → *Waiting for server response* (TTFB) = auth + martin + Nginx + one network round trip.
 * **Headers** tab → `X-Timing-Auth` / `X-Timing-Martin` show the server-side part.
 * Network round trip ≈ TTFB − auth − martin.
@@ -59,7 +59,7 @@ scenario                           ok/err             total            ttfb     
 GeoTrak  | API token                200/0     p50 /  p95      ...
 GeoTrak  | session (web map)        200/0     ...
 GeoLayers| session (builder)        200/0     ...
-GeoLayers| share link               200/0     ...
+GeoLayers| Layer URL                200/0     ...
 Martin   | riyadh (no auth)         200/0     (server-side run only, via --martin)
 ```
 
@@ -78,7 +78,7 @@ Scenarios (each at `RATE` tiles/s, constant-arrival-rate):
 | `geotrak_token` | `:8000/tiles/riyadh_roads/...` + `Authorization: Bearer gtk_…` |
 | `geotrak_session` | same, with the GeoTrak session cookie (web map) |
 | `geolayers_session` | `:8081/tiles/geolayers_tile/...?layer=` + GeoLayers session cookie |
-| `geolayers_share` | `:8081/x/<share-token>/...pbf` |
+| `geolayers_share` | `:8081/x/<token>/...pbf` (Layer URL) |
 | `martin_riyadh`, `martin_geolayers` | Martin directly, **no auth**: the baseline |
 
 The pass/fail thresholds are p95 < `P95_MS` (default 500 ms) per scenario and < 1 % errors.

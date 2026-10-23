@@ -7,7 +7,7 @@
 #   bash tests/run_all.sh --only unit|smoke|latency|load  # one stage
 #
 # Needs: the geo-infra stack plus both apps running. Test fixtures (a loadtest user,
-# token, layer and share link) are created first and removed at the end, even on failure.
+# token, layer and Layer URL) are created first and removed at the end, even on failure.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -108,11 +108,11 @@ if [ "$LOAD" = 1 ] || [ "$ONLY" = load ]; then
 
   step "Tile log sample (auth / martin split per request, token prefixes only)"
   docker logs --since 10m geo-nginx 2>&1 | grep 'tile_token=' | tail -n 5 || true
-  step "Checking that no full tokens or share tokens were logged"
+  step "Checking that no full tokens or Layer URL tokens were logged"
   # Prefixes (gtk_ + 8 chars) are logged on purpose; a full token is gtk_ + 43 chars.
   SHARE_TOKEN="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["geolayers"]["share_token"])' "$FIXTURES" 2>/dev/null || true)"
   if docker logs --since 30m geo-nginx 2>&1 | grep -Eq 'gtk_[A-Za-z0-9_-]{20,}'      || { [ -n "$SHARE_TOKEN" ] && docker logs --since 30m geo-nginx 2>&1 | grep -qF "$SHARE_TOKEN"; }; then
-    echo "FAIL: a full API token or share-link token appears in the Nginx logs"; exit 1
+    echo "FAIL: a full API token or Layer URL token appears in the Nginx logs"; exit 1
   else
     echo "ok"
   fi

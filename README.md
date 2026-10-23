@@ -13,7 +13,8 @@ Shared infrastructure for two independent Django projects:
                     │         └─ 204 ─────────────────────────► martin                  │
                     │       /*  ──────────────────────────────► geotrak_web:8000        │
                     │ :8081 /tiles/geolayers_tile/... ┐                                 │
-                    │       /x/<share-token>/...      ┴ auth_request ► geolayers_web     │
+                    │       /x/<token>/...  (Layer URL)┼ auth_request ► geolayers_web   │
+                    │       /m/<token>/...  (Map URL) ┘                                 │
                     │         └─ 204 + X-Tile-Layer ──────────► martin                  │
                     │       /*  ──────────────────────────────► geolayers_web:8000      │
                     └──────────────────────────────────────────────────────────────────┘
@@ -27,8 +28,8 @@ Shared infrastructure for two independent Django projects:
 * **One Martin.** Not published on the host. Nginx is the only way in; each port
   exposes only its own sources (`:8081` can never serve `riyadh_roads`).
 * **Tile auth via Nginx `auth_request`.** Django answers yes/no; tile bodies go
-  Nginx → Martin. GeoTrak uses session / API tokens; GeoLayers uses session / JWT
-  or XYZ share-link tokens (`/x/<token>/…`).
+  Nginx → Martin. GeoTrak uses session / API tokens; GeoLayers uses session / JWT,
+  Layer URLs (`/x/<token>/…`), or Map URLs (`/m/<token>/…`).
 * **GeoLayers Martin function** `layers_data.geolayers_tile` (migration `layers.0003`)
   serves any `layer_<uuid>` via `?layer=` — no Martin restart on upload.
 * Martin tile cache is **off** so GeoTrak edits appear on the next tile reload.
@@ -95,6 +96,8 @@ curl -si http://localhost:8000/tiles/riyadh_roads/10/690/430 | head -1
 curl -si http://localhost:8000/tiles/catalog | head -1                        # 404
 curl -si http://localhost:8081/tiles/riyadh_roads/10/690/430 | head -1         # 404
 curl -si "http://localhost:8081/tiles/geolayers_tile/0/0/0?layer=layer_<hex>" | head -1
+curl -si "http://localhost:8081/x/<token>/0/0/0.pbf" | head -1              # Layer URL tile
+curl -si "http://localhost:8081/m/<token>/layer_<hex>/0/0/0.pbf" | head -1  # Map URL tile
 ```
 
 ## Operations

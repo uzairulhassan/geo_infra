@@ -12,9 +12,10 @@ upstream martin {
 # (that app's requests return 502).
 resolver 127.0.0.11 valid=10s ipv6=off;
 
-# Share-link tokens live in the PATH (/x/<token>/...), so mask them before logging.
+# Share-link tokens live in the PATH (/x/<token>/…, /m/<token>/…), so mask them before logging.
 map $uri $log_uri {
     ~^/x/[^/]+/(?<log_rest>.*)$  /x/***/$log_rest;
+    ~^/m/[^/]+/(?<log_rest>.*)$  /m/***/$log_rest;
     default                      $uri;
 }
 

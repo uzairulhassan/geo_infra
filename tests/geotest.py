@@ -3,6 +3,7 @@
 Fixture JSON (written by run_all.sh from the two `tile_loadtest_fixture` commands):
     {"geotrak":   {"email", "password", "token", "layer", "layer_allows_anonymous"},
      "geolayers": {"username", "password", "layer_id", "layer_table", "share_token", "bounds"}}
+# share_token is a Layer URL token (/x/<token>/…). Map URLs are exercised in smoke via the API.
 """
 from __future__ import annotations
 
