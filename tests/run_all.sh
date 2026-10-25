@@ -14,8 +14,18 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 INFRA="$(cd "$HERE/.." && pwd)"
 GEOTRAK_DIR="${GEOTRAK_DIR:-$INFRA/../naqel-mapserver}"
 GEOLAYERS_DIR="${GEOLAYERS_DIR:-$INFRA/../layeruploading_martintileserver}"
-GEOTRAK_COMPOSE="${GEOTRAK_COMPOSE:-docker-compose.prod.yml}"
-GEOLAYERS_COMPOSE="${GEOLAYERS_COMPOSE:-docker-compose.prod.yml}"
+
+# Use whichever compose file actually started the app (local bind-mount vs prod image).
+running_compose() {
+  local dir="$1" service="$2"
+  if docker compose -f "$dir/docker-compose.yml" ps -q "$service" 2>/dev/null | grep -q .; then
+    echo docker-compose.yml
+  else
+    echo docker-compose.prod.yml
+  fi
+}
+GEOTRAK_COMPOSE="${GEOTRAK_COMPOSE:-$(running_compose "$GEOTRAK_DIR" geotrak_maps)}"
+GEOLAYERS_COMPOSE="${GEOLAYERS_COMPOSE:-$(running_compose "$GEOLAYERS_DIR" web)}"
 FIXTURES="$HERE/.fixtures.json"
 REPORTS="$HERE/reports"
 HOST_HEADER="${HOST_HEADER:-localhost}"   # must be in both apps' ALLOWED_HOSTS

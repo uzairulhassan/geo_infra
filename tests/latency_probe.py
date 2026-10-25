@@ -24,6 +24,7 @@ import statistics
 import sys
 
 from geotest import (
+    RIYADH_BBOX,
     Config,
     Http,
     add_common_args,
@@ -44,7 +45,7 @@ def percentile(values, pct):
 def build_scenarios(cfg, http):
     gt, gl = cfg.fixtures["geotrak"], cfg.fixtures["geolayers"]
     gt_session = login_geotrak(http, cfg)
-    gl_session, gl_jwt = login_geolayers(http, cfg)
+    gl_session, _ = login_geolayers(http, cfg)
     gl_bbox = gl["bounds"]
 
     def gt_url(z, x, y):
@@ -79,7 +80,7 @@ def run(cfg, requests, keep_alive, seed):
     for name, make, bbox in scenarios:
         is_martin = name.startswith("Martin")
         http = Http(keep_alive=keep_alive, host_header="" if is_martin else cfg.host_header)
-        tiles = [random_tile(bbox or (46.55, 24.55, 46.90, 24.85), rng=rng) for _ in range(requests)]
+        tiles = [random_tile(bbox or RIYADH_BBOX, rng=rng) for _ in range(requests)]
         rows = {"total": [], "ttfb": [], "connect": [], "auth": [], "martin": [], "network+": []}
         errors = 0
         http.get(make(tiles[0])[0], make(tiles[0])[1])  # warm-up (DNS, first connection, Django import)

@@ -1,7 +1,5 @@
 .env
 .env.prod
-.env.local
-.env.*.local
 backups/
 *.zip
 *.dump

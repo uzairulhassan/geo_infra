@@ -102,11 +102,10 @@ curl -si "http://localhost:8081/m/<token>/layer_<hex>/0/0/0.pbf" | head -1  # Ma
 
 ## Operations
 
-* **Firewall:** only **8000** and **8081** (later 443). Postgres is `127.0.0.1:5432`.
+* **Firewall:** only **8000** and **8081**. Postgres is loopback-only on
+  `127.0.0.1:${POSTGRES_HOST_PORT}` (5434 local, 5432 on the VPS).
 * **pgAdmin:** `docker compose --profile tools up -d pgadmin` → `127.0.0.1:5050` (SSH tunnel on VPS).
 * **Backups:**  
   `docker compose exec postgis pg_dump -U postgres -Fc <db> > backups/<db>-$(date +%F).dump`  
   for `geotrak`, `riyadh_roads`, `geolayers`. After restore:  
   `docker compose exec postgis bash /scripts/grant-martin-read.sh`
-* **TLS (later):** add SSL in Nginx templates, then set `SECURE_SSL_REDIRECT`,
-  `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE` to `True` in both apps.

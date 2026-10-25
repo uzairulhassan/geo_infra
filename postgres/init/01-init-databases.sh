@@ -6,7 +6,7 @@
 #   riyadh_roads  Riyadh road network (MVT src)  owner: geotrak_user   (GeoTrak edits it)
 #   geolayers     GeoLayers app data + layers    owner: geolayers_user
 #
-# martin_reader is a read-only login used by Martin. It can only SELECT.
+# martin_reader is a read-only login used by Martin (SELECT, plus EXECUTE on geolayers_tile).
 set -euo pipefail
 
 psql -v ON_ERROR_STOP=1 --username postgres --dbname postgres \

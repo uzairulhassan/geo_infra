@@ -27,15 +27,7 @@ server {
             return 204;
         }
 
-        auth_request     /_tile_auth;
-        auth_request_set $tile_token_id $upstream_http_x_tile_token_id;
-
-        # Latency breakdown (seconds), for DevTools / latency_probe.py / k6:
-        #   X-Timing-Auth   = Django auth subrequest,  X-Timing-Martin = Martin tile render.
-        auth_request_set $tile_auth_time $upstream_response_time;
-        add_header X-Timing-Auth   $tile_auth_time always;
-        add_header X-Timing-Martin $upstream_response_time always;
-        add_header Access-Control-Expose-Headers "X-Timing-Auth, X-Timing-Martin" always;
+        include /etc/nginx/snippets/geotrak-tile-auth.conf;
 
         # Live edits: tiles must never be cached by browsers or intermediaries.
         add_header Cache-Control "no-store, max-age=0" always;

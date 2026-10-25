@@ -6,7 +6,7 @@
 #   backups/riyadh_governorate.geojson
 #
 # Fallback:
-#   backups/riyadh_roads.zip  (or sau_road.zip) — already-clipped shapefile
+#   backups/riyadh_roads.zip — already-clipped UTF-8 shapefile
 #
 # Why:
 #   GeoTrak labels use name_en / name_ar (see mapping API + symbology/labeling.json).
@@ -72,15 +72,9 @@ if [[ -f "$ROADS_SHP" && -f "$BOUNDARY" ]]; then
     -lco ENCODING=UTF-8 \
     --config SHAPE_ENCODING UTF-8
   SHP="$WORK/riyadh_roads_utf8.shp"
-elif [[ -n "${SHP_ZIP:-}" || -f /backups/riyadh_roads.zip || -f /backups/sau_road.zip ]]; then
+elif [[ -n "${SHP_ZIP:-}" || -f /backups/riyadh_roads.zip ]]; then
   SOURCE_MODE="zip"
-  if [[ -z "${SHP_ZIP:-}" ]]; then
-    if [[ -f /backups/riyadh_roads.zip ]]; then
-      SHP_ZIP=/backups/riyadh_roads.zip
-    else
-      SHP_ZIP=/backups/sau_road.zip
-    fi
-  fi
+  SHP_ZIP="${SHP_ZIP:-/backups/riyadh_roads.zip}"
   echo "==> Mode: fallback zip import ($SHP_ZIP)"
   echo "    WARNING: if this zip was exported as Windows-1252, Arabic labels will be corrupted."
   unzip -qo "$SHP_ZIP" -d "$WORK"
@@ -101,7 +95,7 @@ elif [[ -n "${SHP_ZIP:-}" || -f /backups/riyadh_roads.zip || -f /backups/sau_roa
 else
   echo "ERROR: need either:" >&2
   echo "  1) $ROADS_SHP + $BOUNDARY" >&2
-  echo "  2) /backups/riyadh_roads.zip (UTF-8) or /backups/sau_road.zip" >&2
+  echo "  2) /backups/riyadh_roads.zip (UTF-8)" >&2
   exit 1
 fi
 
