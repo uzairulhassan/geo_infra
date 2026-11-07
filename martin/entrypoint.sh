@@ -21,7 +21,7 @@ CONFIG="/tmp/martin-runtime.yaml"
 cat > "$CONFIG" <<EOF
 listen_addresses: "0.0.0.0:3000"
 worker_processes: ${WORKERS}
-# 0 = disabled (live GeoTrak edits).
+# Live edits: keep 0. Martin caches by z/x/y and does not honor ?v= busting.
 cache_size_mb: ${CACHE_MB}
 preferred_encoding: gzip
 web_ui: disable

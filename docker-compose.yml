@@ -53,7 +53,7 @@ services:
     environment:
       MARTIN_RIYADH_DATABASE_URL: postgresql://martin_reader:${MARTIN_DB_PASSWORD}@postgis:5432/riyadh_roads
       MARTIN_GEOLAYERS_DATABASE_URL: postgresql://martin_reader:${MARTIN_DB_PASSWORD}@postgis:5432/geolayers
-      # 0 = no Martin tile cache (live GeoTrak geometry edits).
+      # 0 required: Martin caches by z/x/y and ignores ?v= (stale tiles after edits).
       MARTIN_CACHE_MB: ${MARTIN_CACHE_MB:-0}
       MARTIN_POOL_SIZE: ${MARTIN_POOL_SIZE:-5}
       MARTIN_WORKERS: ${MARTIN_WORKERS:-2}

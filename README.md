@@ -32,14 +32,16 @@ Shared infrastructure for two independent Django projects:
   Layer URLs (`/x/<token>/…`), or Map URLs (`/m/<token>/…`).
 * **GeoLayers Martin function** `layers_data.geolayers_tile` (migration `layers.0003`)
   serves any `layer_<uuid>` via `?layer=` — no Martin restart on upload.
-* Martin tile cache is **off** so GeoTrak edits appear on the next tile reload.
+* Martin tile cache is **off** (`MARTIN_CACHE_MB=0`) so GeoTrak edits are not stale
+  (Martin keys tiles by z/x/y and ignores `?v=`). Browsers may cache GeoTrak tiles
+  briefly; GeoTrak busts with `?v=<tiles_version>` after network edits.
 
 ## First-time setup
 
 ```bash
 # 1. Shared infra (creates network geo_shared)
 cd geo_infra
-# Use .env for local, or copy .env.prod → .env on the VPS
+cp .env.example .env   # then fill real secrets (or copy .env.prod → .env on the VPS)
 docker compose up -d
 
 # 2. Apps (secrets in each app's .env must match geo_infra/.env)
@@ -63,6 +65,7 @@ Local development (bind-mount source) uses `docker-compose.yml` in each app inst
 | `GEOLAYERS_TILE_AUTH_SHARED_SECRET` | – | `TILE_AUTH_SHARED_SECRET` |
 
 Environment files:
+* **`.env.example`** — secret-free template (committed); copy to `.env`
 * **`.env`** — local development (gitignored)
 * **`.env.prod`** — production values; copy to the VPS as `.env` (gitignored)
 

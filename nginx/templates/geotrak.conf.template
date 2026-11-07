@@ -29,8 +29,8 @@ server {
 
         include /etc/nginx/snippets/geotrak-tile-auth.conf;
 
-        # Live edits: tiles must never be cached by browsers or intermediaries.
-        add_header Cache-Control "no-store, max-age=0" always;
+        # ?v=<tiles_version> busts after edits; same version may reuse browser cache.
+        add_header Cache-Control "private, max-age=300" always;
 
         error_page 401 = @tile_401;
         error_page 403 = @tile_403;

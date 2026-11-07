@@ -44,7 +44,9 @@ class GeoTrakTiles(unittest.TestCase):
     def test_token_in_query(self):
         res = self.http.get(f"{self.tile}?token={self.fx['token']}")
         self.assertIn(res.status, OK_TILE)
-        self.assertIn("no-store", res.header("cache-control"))
+        # Matches nginx geotrak.conf: browser may reuse same ?v=; edits bump tiles_version.
+        self.assertIn("private", res.header("cache-control"))
+        self.assertIn("max-age=300", res.header("cache-control"))
         self.assertEqual(res.header("access-control-allow-origin"), "*")
         self.assertIsNotNone(res.timing("X-Timing-Auth"), "Nginx timing header missing")
 
