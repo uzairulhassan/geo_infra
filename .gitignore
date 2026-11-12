@@ -10,3 +10,9 @@ __pycache__/
 .DS_Store
 Thumbs.db
 .idea/
+
+# Local AI agent context (do not push)
+.cursor/
+AGENTS.md
+WORKSPACE_CONTEXT.md
+
